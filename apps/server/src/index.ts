@@ -33,17 +33,37 @@ const io = new Server(server, {
   }
 });
 
+import { terminalService } from './services/TerminalService';
+
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
-  // Handle Terminal input streaming
-  socket.on('terminal:input', (payload: TerminalDataPayload) => {
-    console.log(`Terminal Input [${payload.sessionId}]:`, payload.data);
-    // Broadcast output response simulated back (real node-pty to be added in Terminal phase)
-    socket.emit('terminal:output', {
-      sessionId: payload.sessionId,
-      data: payload.data === '\r' ? '\r\n$ ' : payload.data
-    });
+  // Handle Terminal creation
+  socket.on('terminal:create', (payload: { sessionId: string; cols?: number; rows?: number }) => {
+    console.log(`Spawning shell process for session: ${payload.sessionId}`);
+    terminalService.createSession(
+      payload.sessionId, 
+      payload.cols || 80, 
+      payload.rows || 24, 
+      (data) => {
+        socket.emit('terminal:data', { sessionId: payload.sessionId, data });
+      }
+    );
+  });
+
+  // Handle Terminal input typing
+  socket.on('terminal:write', (payload: { sessionId: string; data: string }) => {
+    terminalService.write(payload.sessionId, payload.data);
+  });
+
+  // Handle Terminal resizing
+  socket.on('terminal:resize', (payload: { sessionId: string; cols: number; rows: number }) => {
+    terminalService.resize(payload.sessionId, payload.cols, payload.rows);
+  });
+
+  // Handle Terminal process termination
+  socket.on('terminal:kill', (payload: { sessionId: string }) => {
+    terminalService.killSession(payload.sessionId);
   });
 
   // Handle Workflow run triggers

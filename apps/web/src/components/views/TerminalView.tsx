@@ -1,109 +1,99 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useStore } from '@/store/useStore';
-import { Play, Trash2, HelpCircle } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { useTerminalStore } from '@/store/useTerminalStore';
+import { XTermConsole } from '../terminal/XTermConsole';
+import { Plus, X, Terminal as TerminalIcon } from 'lucide-react';
 
 export const TerminalView: React.FC = () => {
-  const { terminalLogs, addTerminalLog, clearTerminalLogs } = useStore();
-  const [inputVal, setInputVal] = useState('');
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const {
+    tabs,
+    activeTabId,
+    connectSocket,
+    createSession,
+    closeSession,
+    setActiveTab
+  } = useTerminalStore();
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [terminalLogs]);
+    connectSocket();
+  }, [connectSocket]);
 
-  const handleCommandSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputVal.trim()) return;
-
-    const cmd = inputVal.trim();
-    setInputVal('');
-
-    // Append command to console logs
-    addTerminalLog({ type: 'input', text: `$ ${cmd}` });
-
-    // Mock terminal execution parser
-    setTimeout(() => {
-      if (cmd.startsWith('/help')) {
-        addTerminalLog({ type: 'info', text: 'Available commands:\n  /trigger - Run full pipeline\n  /clear - Clear terminal logs\n  /agent [name] - Query specific agent status' });
-      } else if (cmd.startsWith('/trigger')) {
-        addTerminalLog({ type: 'info', text: 'Triggering orchestrator run...' });
-        addTerminalLog({ type: 'success', text: 'Pipeline initialized. Watch dashboard for progress.' });
-      } else if (cmd.startsWith('/clear')) {
-        clearTerminalLogs();
-      } else if (cmd.startsWith('/agent')) {
-        const parts = cmd.split(' ');
-        const name = parts[1] || 'Agent';
-        addTerminalLog({ type: 'info', text: `Querying status for ${name}...` });
-        addTerminalLog({ type: 'success', text: `${name} is currently IDLE. Efficiency 95%.` });
-      } else {
-        addTerminalLog({ type: 'error', text: `Command not found: "${cmd}". Type /help for details.` });
-      }
-    }, 500);
-  };
+  // Create initial shell session if none exists
+  useEffect(() => {
+    if (tabs.length === 0) {
+      createSession();
+    }
+  }, [tabs, createSession]);
 
   return (
-    <div className="flex-1 flex flex-col bg-zinc-950 p-6 font-mono text-xs overflow-hidden">
-      {/* Console Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-red-500/20 border border-red-500/40"></span>
-          <span className="h-3 w-3 rounded-full bg-yellow-500/20 border border-yellow-500/40"></span>
-          <span className="h-3 w-3 rounded-full bg-green-500/20 border border-green-500/40"></span>
-          <span className="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider ml-2">Console Shell</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={clearTerminalLogs}
-            className="flex items-center gap-1.5 px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded transition-colors text-[10px]"
+    <div className="flex-1 flex flex-col bg-zinc-950 overflow-hidden font-mono">
+      {/* Console Tab bar */}
+      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 h-12 shrink-0">
+        <div className="flex items-center gap-1 overflow-x-auto select-none no-scrollbar">
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            return (
+              <div
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-t-lg border-t-2 text-[11px] cursor-pointer transition-all ${
+                  isActive
+                    ? 'bg-zinc-900 border-purple-500 text-white'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/30'
+                }`}
+              >
+                <TerminalIcon className="w-3 h-3 text-purple-400 shrink-0" />
+                <span className="truncate max-w-[80px]">{tab.name}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeSession(tab.id);
+                  }}
+                  className="p-0.5 hover:bg-zinc-800 rounded transition-colors text-zinc-600 hover:text-zinc-300 bg-transparent border-0 cursor-pointer"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            );
+          })}
+          <button
+            onClick={() => createSession()}
+            className="p-1 hover:bg-zinc-900 rounded-md transition-colors text-zinc-400 hover:text-zinc-200 cursor-pointer ml-1 bg-transparent border-0"
+            title="Open New Terminal Tab"
           >
-            <Trash2 className="h-3 w-3" />
-            Clear
+            <Plus className="w-4 h-4" />
           </button>
         </div>
+
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Terminal Engine Active</span>
+        </div>
       </div>
 
-      {/* Output Console area */}
-      <div className="flex-1 overflow-y-auto space-y-2 pr-2 mb-4 scrollbar-thin">
-        {terminalLogs.map((log) => (
-          <div key={log.id} className="leading-relaxed whitespace-pre-wrap">
-            <span className="text-zinc-600">[{log.timestamp}] </span>
-            {log.type !== 'input' && (
-              <span className={`inline-block px-1 rounded text-[8px] uppercase font-semibold mr-2 ${
-                log.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                log.type === 'warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                log.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                'bg-zinc-800 text-zinc-400'
-              }`}>
-                {log.type}
-              </span>
-            )}
-            <span className={
-              log.type === 'input' ? 'text-indigo-400 font-bold' :
-              log.type === 'error' ? 'text-red-400' :
-              log.type === 'warning' ? 'text-amber-400' :
-              log.type === 'success' ? 'text-emerald-400' :
-              'text-zinc-300'
-            }>
-              {log.text}
-            </span>
+      {/* Terminal Viewports Container */}
+      <div className="flex-1 relative overflow-hidden bg-zinc-950">
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTabId;
+          return (
+            <div
+              key={tab.id}
+              className={`absolute inset-0 w-full h-full ${isActive ? 'block' : 'hidden'}`}
+            >
+              <XTermConsole sessionId={tab.id} />
+            </div>
+          );
+        })}
+
+        {tabs.length === 0 && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 text-zinc-600">
+            <TerminalIcon className="w-10 h-10 text-zinc-800 mb-3 animate-pulse" />
+            <h4 className="text-xs font-semibold text-zinc-400">No Terminal Sessions Active</h4>
+            <p className="text-[10px] text-zinc-600 mt-1 max-w-xs">
+              Click the "+" button in the tab header to initialize a native shell terminal instance.
+            </p>
           </div>
-        ))}
-        <div ref={bottomRef}></div>
+        )}
       </div>
-
-      {/* Command prompt form */}
-      <form onSubmit={handleCommandSubmit} className="flex items-center gap-2 border-t border-zinc-900 pt-4">
-        <span className="text-indigo-500 font-bold">$</span>
-        <input
-          type="text"
-          value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          placeholder="Type command (e.g. /trigger, /agent Architect, /help)..."
-          className="flex-1 bg-transparent border-0 outline-none text-zinc-200 placeholder-zinc-700"
-          autoFocus
-        />
-        <button type="submit" className="hidden">Submit</button>
-      </form>
     </div>
   );
 };

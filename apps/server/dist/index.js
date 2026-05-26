@@ -27,16 +27,27 @@ const io = new socket_io_1.Server(server, {
         methods: ['GET', 'POST']
     }
 });
+const TerminalService_1 = require("./services/TerminalService");
 io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
-    // Handle Terminal input streaming
-    socket.on('terminal:input', (payload) => {
-        console.log(`Terminal Input [${payload.sessionId}]:`, payload.data);
-        // Broadcast output response simulated back (real node-pty to be added in Terminal phase)
-        socket.emit('terminal:output', {
-            sessionId: payload.sessionId,
-            data: payload.data === '\r' ? '\r\n$ ' : payload.data
+    // Handle Terminal creation
+    socket.on('terminal:create', (payload) => {
+        console.log(`Spawning shell process for session: ${payload.sessionId}`);
+        TerminalService_1.terminalService.createSession(payload.sessionId, payload.cols || 80, payload.rows || 24, (data) => {
+            socket.emit('terminal:data', { sessionId: payload.sessionId, data });
         });
+    });
+    // Handle Terminal input typing
+    socket.on('terminal:write', (payload) => {
+        TerminalService_1.terminalService.write(payload.sessionId, payload.data);
+    });
+    // Handle Terminal resizing
+    socket.on('terminal:resize', (payload) => {
+        TerminalService_1.terminalService.resize(payload.sessionId, payload.cols, payload.rows);
+    });
+    // Handle Terminal process termination
+    socket.on('terminal:kill', (payload) => {
+        TerminalService_1.terminalService.killSession(payload.sessionId);
     });
     // Handle Workflow run triggers
     socket.on('workflow:trigger', (workflowId) => {
