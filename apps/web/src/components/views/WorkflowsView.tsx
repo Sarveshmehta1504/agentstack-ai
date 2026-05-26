@@ -1,231 +1,348 @@
-import React, { useState } from 'react';
-import { useStore, WorkflowNode } from '@/store/useStore';
-import { 
-  Plus, 
-  Settings, 
-  Play, 
-  Layers, 
-  Terminal, 
-  GitBranch, 
-  Database, 
-  Eye, 
-  MousePointer, 
-  FolderSync 
-} from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useWorkflowStore } from '@/store/useWorkflowStore';
+import { Play, Plus, Sliders, Activity, Terminal, Brain, Clock, Globe, Trash2 } from 'lucide-react';
+import { WorkflowNode, NodeType } from '@agentstack/shared';
 
 export const WorkflowsView: React.FC = () => {
-  const { nodes, edges, updateNodeStatus, addTerminalLog } = useStore();
-  const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(nodes[1]);
+  const {
+    nodes,
+    edges,
+    running,
+    nodeStatuses,
+    connectSocket,
+    addNode,
+    setNodes,
+    setEdges,
+    updateNodeConfig,
+    executeWorkflow
+  } = useWorkflowStore();
 
-  const runSingleNode = (id: string, label: string) => {
-    addTerminalLog({ type: 'info', text: `Triggering execution for node [${label}]...` });
-    updateNodeStatus(id, 'running');
-    setTimeout(() => {
-      updateNodeStatus(id, 'success');
-      addTerminalLog({ type: 'success', text: `Node [${label}] execution completed successfully.` });
-    }, 2500);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    connectSocket();
+  }, [connectSocket]);
+
+  const selectedNode = nodes.find(n => n.id === selectedNodeId);
+
+  const handleAddNode = (type: NodeType) => {
+    const id = `node-${Date.now()}`;
+    let label = '';
+    let config = {};
+
+    switch (type) {
+      case 'DELAY':
+        label = 'Delay';
+        config = { duration: '2000' };
+        break;
+      case 'TERMINAL_COMMAND':
+        label = 'Terminal Command';
+        config = { command: 'echo "AgentStack"' };
+        break;
+      case 'AI_PROMPT':
+        label = 'AI Prompt';
+        config = { prompt: 'Why is modular design essential?', provider: 'openai', model: 'gpt-4o' };
+        break;
+      case 'HTTP_REQUEST':
+        label = 'HTTP Fetch';
+        config = { url: 'https://httpbin.org/get', method: 'GET' };
+        break;
+      default:
+        label = 'Custom Block';
+    }
+
+    const newNode: WorkflowNode = {
+      id,
+      type,
+      label,
+      config,
+      position: { x: 100, y: 150 }
+    };
+    addNode(newNode);
+    setSelectedNodeId(id);
+
+    // Auto-create edge link if there is a previous node
+    if (nodes.length > 0) {
+      const prevNode = nodes[nodes.length - 1];
+      const newEdge = {
+        id: `edge-${prevNode.id}-${id}`,
+        source: prevNode.id,
+        target: id
+      };
+      setEdges([...edges, newEdge]);
+    }
   };
 
-  const getNodeIcon = (type: WorkflowNode['type']) => {
+  const getNodeIcon = (type: NodeType) => {
     switch (type) {
-      case 'terminal': return Terminal;
-      case 'agent': return Layers;
-      case 'db': return Database;
-      case 'github': return FolderSync;
-      default: return GitBranch;
+      case 'DELAY': return <Clock className="w-4 h-4 text-amber-400" />;
+      case 'TERMINAL_COMMAND': return <Terminal className="w-4 h-4 text-emerald-400" />;
+      case 'AI_PROMPT': return <Brain className="w-4 h-4 text-purple-400" />;
+      case 'HTTP_REQUEST': return <Globe className="w-4 h-4 text-sky-400" />;
+      default: return <Sliders className="w-4 h-4 text-zinc-400" />;
     }
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-zinc-950/40 relative">
-      {/* Visual Canvas */}
-      <div className="flex-1 overflow-auto relative p-12 select-none border-r border-zinc-800/60" style={{
-        backgroundImage: 'radial-gradient(circle, rgba(63, 63, 70, 0.15) 1px, transparent 1px)',
-        backgroundSize: '24px 24px'
-      }}>
-        {/* Toolbar */}
-        <div className="absolute top-4 left-4 bg-zinc-900/90 border border-zinc-800 backdrop-blur px-3 py-1.5 rounded-lg flex items-center gap-3 z-10">
-          <button className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200 transition-colors">
-            <MousePointer className="h-4 w-4 text-indigo-400" />
-          </button>
-          <div className="h-4 w-px bg-zinc-800"></div>
-          <button className="flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 px-2 py-0.5 hover:bg-zinc-800 rounded transition-all">
-            <Plus className="h-3.5 w-3.5" />
-            Add Node
-          </button>
-          <div className="h-4 w-px bg-zinc-800"></div>
-          <span className="text-[10px] text-zinc-500 font-mono">Zoom: 100%</span>
+    <div className="flex-1 flex overflow-hidden bg-zinc-950/20 p-6 gap-6">
+      {/* Node Catalog Sidebar */}
+      <div className="w-64 flex flex-col gap-4 shrink-0 overflow-y-auto">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Node Catalog</h3>
+          <p className="text-[10px] text-zinc-500 mt-1">Insert execution steps into your active pipeline.</p>
         </div>
 
-        {/* Nodes Container */}
-        <div className="relative w-[800px] h-[550px] mx-auto mt-8">
-          {/* Custom SVG lines for connections */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-            <defs>
-              <linearGradient id="activeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#4f46e5" />
-                <stop offset="100%" stopColor="#10b981" />
-              </linearGradient>
-            </defs>
-            {/* Draw connectors based on positions */}
-            <path d="M 90,80 L 260,80" stroke="#4f46e5" strokeWidth="2" strokeDasharray="4 4" className="animate-[dash_2s_linear_infinite]" />
-            <path d="M 330,80 L 460,180" stroke="#4f46e5" strokeWidth="1.5" />
-            <path d="M 330,80 L 460,300" stroke="#3f3f46" strokeWidth="1.5" />
-            <path d="M 530,180 L 660,180" stroke="#3f3f46" strokeWidth="1.5" />
-            <path d="M 530,300 L 660,180" stroke="#3f3f46" strokeWidth="1.5" />
-            <path d="M 730,180 L 860,180" stroke="#3f3f46" strokeWidth="1.5" />
-          </svg>
-
-          {/* Node 1: Start Trigger */}
-          <div 
-            onClick={() => setSelectedNode(nodes[0])}
-            style={{ left: '10px', top: '50px' }}
-            className={`absolute p-3 rounded-lg bg-zinc-900 border ${
-              selectedNode?.id === 'start' ? 'border-indigo-500' : 'border-zinc-800'
-            } w-44 hover:scale-[1.02] cursor-pointer transition-all z-10 shadow-lg`}
+        <div className="space-y-2">
+          <button
+            onClick={() => handleAddNode('DELAY')}
+            className="w-full flex items-center gap-3 p-3 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 rounded-lg text-left text-xs text-zinc-300 cursor-pointer transition-colors"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500 font-mono">Trigger</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+            <Clock className="w-4 h-4 text-amber-400" />
+            <div>
+              <div className="font-semibold text-xs">Delay Sleep</div>
+              <div className="text-[9px] text-zinc-500 mt-0.5">Pause for milliseconds</div>
             </div>
-            <h4 className="text-xs font-semibold text-zinc-100 mt-1">Git Push event</h4>
-            <p className="text-[9px] text-zinc-500 font-mono mt-1">branch: main</p>
-          </div>
+          </button>
 
-          {/* Node 2: Architect */}
-          <div 
-            onClick={() => setSelectedNode(nodes[1])}
-            style={{ left: '230px', top: '50px' }}
-            className={`absolute p-3 rounded-lg bg-zinc-900 border ${
-              selectedNode?.id === 'arch' ? 'border-indigo-500' : 'border-zinc-800'
-            } w-44 hover:scale-[1.02] cursor-pointer transition-all z-10 shadow-lg`}
+          <button
+            onClick={() => handleAddNode('TERMINAL_COMMAND')}
+            className="w-full flex items-center gap-3 p-3 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 rounded-lg text-left text-xs text-zinc-300 cursor-pointer transition-colors"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-indigo-400 font-mono font-semibold">Architect Agent</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+            <Terminal className="w-4 h-4 text-emerald-400" />
+            <div>
+              <div className="font-semibold text-xs">Terminal Script</div>
+              <div className="text-[9px] text-zinc-500 mt-0.5">Execute shell process</div>
             </div>
-            <h4 className="text-xs font-semibold text-zinc-100 mt-1">Design Spec Builder</h4>
-            <p className="text-[9px] text-zinc-500 font-mono mt-1">state: idle</p>
-          </div>
+          </button>
 
-          {/* Node 3: Codegen Agent */}
-          <div 
-            onClick={() => setSelectedNode(nodes[2])}
-            style={{ left: '430px', top: '150px' }}
-            className={`absolute p-3 rounded-lg bg-zinc-900 border ${
-              selectedNode?.id === 'codegen' ? 'border-indigo-500' : 'border-zinc-800'
-            } w-44 hover:scale-[1.02] cursor-pointer transition-all z-10 shadow-lg`}
+          <button
+            onClick={() => handleAddNode('AI_PROMPT')}
+            className="w-full flex items-center gap-3 p-3 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 rounded-lg text-left text-xs text-zinc-300 cursor-pointer transition-colors"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-indigo-400 font-mono font-semibold">Frontend Agent</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            <Brain className="w-4 h-4 text-purple-400" />
+            <div>
+              <div className="font-semibold text-xs">AI Completion</div>
+              <div className="text-[9px] text-zinc-500 mt-0.5">Query LLM provider</div>
             </div>
-            <h4 className="text-xs font-semibold text-zinc-100 mt-1">UI Code Writer</h4>
-            <p className="text-[9px] text-zinc-500 font-mono mt-1">state: compiling...</p>
-          </div>
+          </button>
 
-          {/* Node 4: Backend Agent */}
-          <div 
-            onClick={() => setSelectedNode(nodes[3])}
-            style={{ left: '430px', top: '270px' }}
-            className={`absolute p-3 rounded-lg bg-zinc-900 border ${
-              selectedNode?.id === 'backend' ? 'border-indigo-500' : 'border-zinc-800'
-            } w-44 hover:scale-[1.02] cursor-pointer transition-all z-10 shadow-lg`}
+          <button
+            onClick={() => handleAddNode('HTTP_REQUEST')}
+            className="w-full flex items-center gap-3 p-3 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 rounded-lg text-left text-xs text-zinc-300 cursor-pointer transition-colors"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-indigo-400 font-mono font-semibold">Backend Agent</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-600"></span>
+            <Globe className="w-4 h-4 text-sky-400" />
+            <div>
+              <div className="font-semibold text-xs">HTTP Fetch</div>
+              <div className="text-[9px] text-zinc-500 mt-0.5">Request URL endpoint</div>
             </div>
-            <h4 className="text-xs font-semibold text-zinc-100 mt-1">API Integrator</h4>
-            <p className="text-[9px] text-zinc-500 font-mono mt-1">state: pending</p>
-          </div>
-
-          {/* Node 5: Schema Sync */}
-          <div 
-            onClick={() => setSelectedNode(nodes[4])}
-            style={{ left: '630px', top: '270px' }}
-            className={`absolute p-3 rounded-lg bg-zinc-900 border ${
-              selectedNode?.id === 'db' ? 'border-indigo-500' : 'border-zinc-800'
-            } w-44 hover:scale-[1.02] cursor-pointer transition-all z-10 shadow-lg`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-zinc-400 font-mono">DB Sync</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-600"></span>
-            </div>
-            <h4 className="text-xs font-semibold text-zinc-100 mt-1">Supabase Migrator</h4>
-            <p className="text-[9px] text-zinc-500 font-mono mt-1">state: pending</p>
-          </div>
-
-          {/* Node 6: Review Agent */}
-          <div 
-            onClick={() => setSelectedNode(nodes[5])}
-            style={{ left: '630px', top: '150px' }}
-            className={`absolute p-3 rounded-lg bg-zinc-900 border ${
-              selectedNode?.id === 'audit' ? 'border-indigo-500' : 'border-zinc-800'
-            } w-44 hover:scale-[1.02] cursor-pointer transition-all z-10 shadow-lg`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-indigo-400 font-mono font-semibold">Review Agent</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-600"></span>
-            </div>
-            <h4 className="text-xs font-semibold text-zinc-100 mt-1">Security QA Auditor</h4>
-            <p className="text-[9px] text-zinc-500 font-mono mt-1">state: pending</p>
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* Node Inspector Side Panel */}
-      {selectedNode && (
-        <aside className="w-80 bg-zinc-950/80 backdrop-blur p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 border-b border-zinc-900 pb-3 mb-4">Node Inspector</h3>
+      {/* Main Canvas View */}
+      <div className="flex-1 flex flex-col bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl relative">
+        {/* Graph control header */}
+        <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4 bg-zinc-950/80 shrink-0">
+          <div className="flex items-center gap-3">
+            <Activity className="w-4 h-4 text-purple-400" />
+            <h4 className="text-xs font-bold text-white">Pipeline Canvas</h4>
+          </div>
+          <button
+            onClick={executeWorkflow}
+            disabled={running}
+            className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer border-0"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            {running ? 'Running...' : 'Execute'}
+          </button>
+        </div>
+
+        {/* Display nodes as custom blocks in connection path list */}
+        <div className="flex-1 p-8 overflow-y-auto space-y-6">
+          {nodes.map((node, index) => {
+            const isSelected = node.id === selectedNodeId;
+            const statusInfo = nodeStatuses[node.id];
             
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] text-zinc-500 font-mono block uppercase">Node ID</label>
-                <div className="text-xs text-zinc-300 font-mono mt-1">{selectedNode.id}</div>
-              </div>
+            return (
+              <div key={node.id} className="relative flex flex-col items-center">
+                {/* Connection line helper */}
+                {index > 0 && (
+                  <div className="absolute -top-6 w-0.5 h-6 bg-zinc-800 border-dashed" />
+                )}
 
-              <div>
-                <label className="text-[10px] text-zinc-500 font-mono block uppercase">Node Type</label>
-                <div className="text-xs text-zinc-300 font-mono mt-1 capitalize">{selectedNode.type}</div>
-              </div>
+                <div
+                  onClick={() => setSelectedNodeId(node.id)}
+                  className={`w-full max-w-lg p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-purple-600/10 border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.1)]'
+                      : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center">
+                      {getNodeIcon(node.type)}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">{node.label}</div>
+                      <div className="text-[9px] text-zinc-500 font-mono mt-0.5">{node.type}</div>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="text-[10px] text-zinc-500 font-mono block uppercase">Label</label>
-                <div className="text-xs text-zinc-100 mt-1">{selectedNode.label}</div>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-zinc-500 font-mono block uppercase">Execution State</label>
-                <div className="mt-1">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono capitalize ${
-                    selectedNode.status === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                    selectedNode.status === 'running' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                    'bg-zinc-800 text-zinc-400 border border-transparent'
-                  }`}>
-                    {selectedNode.status}
-                  </span>
+                  {/* Status Indicator */}
+                  {statusInfo ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-semibold uppercase ${
+                        statusInfo.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse' :
+                        statusInfo.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                        statusInfo.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                        'bg-zinc-850 text-zinc-500 border border-transparent'
+                      }`}>
+                        {statusInfo.status}
+                      </span>
+                      {statusInfo.message && (
+                        <span className="text-[9px] text-zinc-550 truncate max-w-[150px]">{statusInfo.message}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[9px] text-zinc-600 font-mono">Ready</span>
+                  )}
                 </div>
               </div>
+            );
+          })}
+
+          {nodes.length === 0 && (
+            <div className="flex flex-col items-center justify-center text-center py-20 text-zinc-650">
+              <Sliders className="w-10 h-10 text-zinc-800 mb-3" />
+              <h5 className="font-semibold text-zinc-400 text-xs">Empty Graph Canvas</h5>
+              <p className="text-[10px] text-zinc-600 mt-1 max-w-xs">
+                Select a block from the catalog column on the left to scaffold your workflow script.
+              </p>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Inspector Panel */}
+      {selectedNode && (
+        <div className="w-80 bg-zinc-950 border border-zinc-800 rounded-xl p-4 shrink-0 flex flex-col h-full overflow-hidden">
+          <div className="flex justify-between items-center border-b border-zinc-800 pb-3 mb-4">
+            <h4 className="text-xs font-bold text-zinc-300">Block Inspector</h4>
+            <span className="text-[9px] text-zinc-500 uppercase font-mono">{selectedNode.type}</span>
           </div>
 
-          <div className="pt-6 border-t border-zinc-900 space-y-2">
-            <button 
-              onClick={() => runSingleNode(selectedNode.id, selectedNode.label)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-medium transition-colors"
-            >
-              <Play className="h-3.5 w-3.5 fill-current" />
-              Run Selected Node
-            </button>
-            <button className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded-md text-xs font-medium transition-colors">
-              <Settings className="h-3.5 w-3.5" />
-              Configure Inputs
-            </button>
+          <div className="flex-1 overflow-y-auto space-y-4">
+            <div>
+              <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">Display Label</label>
+              <input
+                type="text"
+                value={selectedNode.label}
+                onChange={(e) => {
+                  const updated = nodes.map(n => n.id === selectedNode.id ? { ...n, label: e.target.value } : n);
+                  setNodes(updated);
+                }}
+                className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-white focus:outline-none"
+              />
+            </div>
+
+            {selectedNode.type === 'DELAY' && (
+              <div>
+                <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">Duration (ms)</label>
+                <input
+                  type="number"
+                  value={selectedNode.config.duration || '1000'}
+                  onChange={(e) => updateNodeConfig(selectedNode.id, { duration: e.target.value })}
+                  className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-white focus:outline-none"
+                />
+              </div>
+            )}
+
+            {selectedNode.type === 'TERMINAL_COMMAND' && (
+              <div>
+                <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">Shell Command</label>
+                <textarea
+                  value={selectedNode.config.command || ''}
+                  onChange={(e) => updateNodeConfig(selectedNode.id, { command: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-white font-mono focus:outline-none resize-none"
+                  placeholder="e.g. echo 'AgentStack'"
+                />
+              </div>
+            )}
+
+            {selectedNode.type === 'AI_PROMPT' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">Prompt Query</label>
+                  <textarea
+                    value={selectedNode.config.prompt || ''}
+                    onChange={(e) => updateNodeConfig(selectedNode.id, { prompt: e.target.value })}
+                    rows={4}
+                    className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-white focus:outline-none resize-none"
+                    placeholder="Describe prompt query tasks..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">AI Provider</label>
+                  <select
+                    value={selectedNode.config.provider || 'openai'}
+                    onChange={(e) => updateNodeConfig(selectedNode.id, { provider: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none"
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="ollama">Ollama (Local)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selectedNode.type === 'HTTP_REQUEST' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">URL Endpoint</label>
+                  <input
+                    type="text"
+                    value={selectedNode.config.url || ''}
+                    onChange={(e) => updateNodeConfig(selectedNode.id, { url: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-white focus:outline-none"
+                    placeholder="https://api.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-zinc-500 uppercase font-mono tracking-wider block mb-1">HTTP Method</label>
+                  <select
+                    value={selectedNode.config.method || 'GET'}
+                    onChange={(e) => updateNodeConfig(selectedNode.id, { method: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none"
+                  >
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
-        </aside>
+
+          <button
+            onClick={() => {
+              const filtered = nodes.filter(n => n.id !== selectedNode.id);
+              const filteredEdges = edges.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
+              setNodes(filtered);
+              setEdges(filteredEdges);
+              setSelectedNodeId(null);
+            }}
+            className="w-full mt-4 py-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-xs font-semibold transition-all border border-red-500/20 cursor-pointer"
+          >
+            Delete Node Block
+          </button>
+        </div>
       )}
     </div>
   );

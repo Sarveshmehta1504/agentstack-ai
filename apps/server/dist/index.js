@@ -10,6 +10,7 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const projects_1 = __importDefault(require("./routes/projects"));
 const github_1 = __importDefault(require("./routes/github"));
+const workflows_1 = __importDefault(require("./routes/workflows"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const port = process.env.PORT || 4000;
@@ -17,6 +18,7 @@ app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.use('/api/projects', projects_1.default);
 app.use('/api/github', github_1.default);
+app.use('/api/workflows', workflows_1.default);
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'agentstack-backend' });
 });
@@ -29,6 +31,7 @@ const io = new socket_io_1.Server(server, {
 });
 const TerminalService_1 = require("./services/TerminalService");
 const AIService_1 = require("./services/AIService");
+const WorkflowEngine_1 = require("./services/WorkflowEngine");
 io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
     // Handle Terminal creation
@@ -60,31 +63,27 @@ io.on('connection', (socket) => {
         });
     });
     // Handle Workflow run triggers
-    socket.on('workflow:trigger', (workflowId) => {
-        console.log(`Workflow Triggered: ${workflowId}`);
-        // Simulate steps execution
-        let step = 0;
-        const intervals = setInterval(() => {
-            if (step >= 4) {
-                clearInterval(intervals);
-                const donePayload = {
-                    executionId: `exec-${workflowId}`,
-                    status: 'COMPLETED',
-                    message: 'Workflow completed execution successfully.',
-                    timestamp: Date.now()
-                };
-                socket.emit('workflow:status', donePayload);
-                return;
-            }
-            const updatePayload = {
-                executionId: `exec-${workflowId}`,
-                status: 'RUNNING',
-                message: `Step ${step + 1} execution in progress...`,
-                timestamp: Date.now()
-            };
-            socket.emit('workflow:status', updatePayload);
-            step++;
-        }, 1500);
+    socket.on('workflow:run', async (payload) => {
+        console.log(`Executing Workflow Engine pipeline: ${payload.executionId}`);
+        try {
+            await WorkflowEngine_1.workflowEngine.executeWorkflow({
+                executionId: payload.executionId,
+                nodes: payload.nodes,
+                edges: payload.edges,
+                onStatusUpdate: (nodeId, status, message) => {
+                    socket.emit('workflow:status', {
+                        executionId: payload.executionId,
+                        nodeId,
+                        status,
+                        message,
+                        timestamp: Date.now()
+                    });
+                }
+            });
+        }
+        catch (err) {
+            console.error('Workflow engine execution error:', err);
+        }
     });
     socket.on('disconnect', () => {
         console.log(`Client disconnected: ${socket.id}`);
