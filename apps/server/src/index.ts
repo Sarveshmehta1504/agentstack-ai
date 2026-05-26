@@ -7,6 +7,7 @@ import { db } from '@agentstack/db';
 import { TerminalDataPayload, WorkflowStatusUpdatePayload } from '@agentstack/shared';
 
 import projectsRouter from './routes/projects';
+import githubRouter from './routes/github';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/projects', projectsRouter);
+app.use('/api/github', githubRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'agentstack-backend' });

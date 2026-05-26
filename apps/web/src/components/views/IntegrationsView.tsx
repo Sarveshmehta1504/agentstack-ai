@@ -3,6 +3,8 @@ import { useStore } from '@/store/useStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GitPullRequest, Flame, Database, Terminal, Send, Cpu } from 'lucide-react';
 
+import { GithubExplorer } from '../github/GithubExplorer';
+
 export const IntegrationsView: React.FC = () => {
   const { integrations, toggleIntegration, addTerminalLog } = useStore();
 
@@ -17,7 +19,6 @@ export const IntegrationsView: React.FC = () => {
 
   const services = [
     { id: 'github', name: 'GitHub', desc: 'Automate pull requests, issue audits, and git actions.', icon: GitPullRequest, color: 'text-indigo-400' },
-
     { id: 'firebase', name: 'Firebase', desc: 'Deploy database rules, cloud hosting, and authentication states.', icon: Flame, color: 'text-amber-500' },
     { id: 'supabase', name: 'Supabase', desc: 'Sync schema definitions, listen to realtime database triggers.', icon: Database, color: 'text-emerald-400' },
     { id: 'docker', name: 'Docker', desc: 'Manage localized container execution sandboxes for agents.', icon: Terminal, color: 'text-sky-400' },
@@ -70,6 +71,14 @@ export const IntegrationsView: React.FC = () => {
             );
           })}
         </div>
+
+        {/* GitHub Explorer Area */}
+        {integrations.github && (
+          <div className="mt-8 border-t border-zinc-800 pt-8">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-4">GitHub Repository Explorer</h3>
+            <GithubExplorer />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@
   "dependencies": {
     "@agentstack/db": "*",
     "@agentstack/shared": "*",
+    "@octokit/rest": "^22.0.1",
     "@supabase/supabase-js": "^2.106.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
