@@ -12,8 +12,32 @@ import { MemoryView } from '../views/MemoryView';
 import { IntegrationsView } from '../views/IntegrationsView';
 import { DocsView } from '../views/DocsView';
 
+import { useEffect } from 'react';
+import { useAuthStore } from '@/store/useAuthStore';
+import { AuthModal } from '../auth/AuthModal';
+
 export const Workspace: React.FC = () => {
   const { activeTab } = useStore();
+  const { user, loading, initialize } = useAuthStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-purple-600/30 border-t-purple-600 rounded-full animate-spin" />
+          <span className="text-zinc-500 text-xs font-semibold tracking-wider">INITIALIZING PLATFORM</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthModal />;
+  }
 
   const renderActiveView = () => {
     switch (activeTab) {

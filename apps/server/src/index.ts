@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { db } from '@agentstack/db';
 import { TerminalDataPayload, WorkflowStatusUpdatePayload } from '@agentstack/shared';
 
+import projectsRouter from './routes/projects';
+
 dotenv.config();
 
 const app = express();
@@ -14,19 +16,12 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
+app.use('/api/projects', projectsRouter);
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'agentstack-backend' });
 });
 
-// Basic Projects endpoint
-app.get('/api/projects', async (req, res) => {
-  try {
-    const projects = await db.project.findMany();
-    res.json(projects);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve projects' });
-  }
-});
 
 const server = http.createServer(app);
 const io = new Server(server, {

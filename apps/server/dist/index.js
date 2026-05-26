@@ -8,24 +8,15 @@ const http_1 = __importDefault(require("http"));
 const socket_io_1 = require("socket.io");
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const db_1 = require("@agentstack/db");
+const projects_1 = __importDefault(require("./routes/projects"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const port = process.env.PORT || 4000;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+app.use('/api/projects', projects_1.default);
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'agentstack-backend' });
-});
-// Basic Projects endpoint
-app.get('/api/projects', async (req, res) => {
-    try {
-        const projects = await db_1.db.project.findMany();
-        res.json(projects);
-    }
-    catch (error) {
-        res.status(500).json({ error: 'Failed to retrieve projects' });
-    }
 });
 const server = http_1.default.createServer(app);
 const io = new socket_io_1.Server(server, {
