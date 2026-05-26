@@ -28,6 +28,7 @@ const io = new socket_io_1.Server(server, {
     }
 });
 const TerminalService_1 = require("./services/TerminalService");
+const AIService_1 = require("./services/AIService");
 io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
     // Handle Terminal creation
@@ -48,6 +49,15 @@ io.on('connection', (socket) => {
     // Handle Terminal process termination
     socket.on('terminal:kill', (payload) => {
         TerminalService_1.terminalService.killSession(payload.sessionId);
+    });
+    // Handle AI Provider Orchestration completion prompts
+    socket.on('ai:prompt', async (payload) => {
+        console.log(`AI completion requested via ${payload.provider} for: ${payload.executionId}`);
+        await AIService_1.aiService.streamCompletion(payload.provider, payload.model, payload.prompt, payload.apiKey, (chunk) => {
+            socket.emit('ai:stream', { executionId: payload.executionId, chunk, done: false });
+        }, () => {
+            socket.emit('ai:stream', { executionId: payload.executionId, chunk: '', done: true });
+        });
     });
     // Handle Workflow run triggers
     socket.on('workflow:trigger', (workflowId) => {
