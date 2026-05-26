@@ -1,0 +1,92 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         String      @id @default(uuid())
+  email      String      @unique
+  name       String?
+  createdAt  DateTime    @default(now())
+  workspaces Workspace[]
+  logs       ActivityLog[]
+}
+
+model Workspace {
+  id        String    @id @default(uuid())
+  name      String
+  ownerId   String
+  owner     User      @relation(fields: [ownerId], references: [id])
+  projects  Project[]
+  createdAt DateTime  @default(now())
+}
+
+model Project {
+  id          String       @id @default(uuid())
+  name        String
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  repoUrl     String?
+  workflows   Workflow[]
+  createdAt   DateTime     @default(now())
+}
+
+model Workflow {
+  id          String              @id @default(uuid())
+  name        String
+  projectId   String
+  project     Project             @relation(fields: [projectId], references: [id])
+  nodes       Json // Store nodes array in JSON structure
+  edges       Json // Store edges array in JSON structure
+  executions  WorkflowExecution[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model WorkflowExecution {
+  id         String    @id @default(uuid())
+  workflowId String
+  workflow   Workflow  @relation(fields: [workflowId], references: [id])
+  status     String // PENDING, RUNNING, COMPLETED, FAILED
+  startedAt  DateTime  @default(now())
+  completedAt DateTime?
+  logs       String[]
+}
+
+model AIProvider {
+  id        String   @id @default(uuid())
+  name      String   @unique // openai, anthropic, gemini, ollama
+  apiKey    String?
+  baseUrl   String?
+  isEnabled Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model TerminalSession {
+  id        String   @id @default(uuid())
+  name      String
+  commands  String[]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Integration {
+  id        String   @id @default(uuid())
+  name      String   @unique // github, docker, vercel, etc
+  config    Json
+  isEnabled Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  details   String
+  createdAt DateTime @default(now())
+}
